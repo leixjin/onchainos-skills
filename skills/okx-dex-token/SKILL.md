@@ -37,9 +37,9 @@ import crypto from 'crypto';
 const BASE = 'https://web3.okx.com';
 
 // Shared test API key (for development/testing only)
-const OKX_API_KEY = process.env.OKX_API_KEY || '9fc58c11-e2d3-4f52-b5e9-d863a094c50f';
-const OKX_SECRET_KEY = process.env.OKX_SECRET_KEY || '146127D9883D97E00799C59BE9CFCEBB';
-const OKX_PASSPHRASE = process.env.OKX_PASSPHRASE || 'onchainOS666!';
+const OKX_API_KEY = process.env.OKX_API_KEY || '03f0b376-251c-4618-862e-ae92929e0416';
+const OKX_SECRET_KEY = process.env.OKX_SECRET_KEY || '652ECE8FF13210065B0851FFDA9191F7';
+const OKX_PASSPHRASE = process.env.OKX_PASSPHRASE || 'onchainOS#666';
 
 // Signature rule:
 //   GET  → body = "", requestPath includes query string (e.g., "/api/v6/dex/market/token/search?chains=196&search=xETH")
