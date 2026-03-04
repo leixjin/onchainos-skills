@@ -73,6 +73,13 @@ async function okxFetch(method: 'GET' | 'POST', path: string, body?: object) {
 
 Response envelope: `{ "code": "0", "data": [...], "msg": "" }`. `code` = `"0"` means success.
 
+## Skill Routing
+
+- For real-time prices / K-lines / trade history → use `okx-dex-market`
+- For balance queries → use `okx-wallet-portfolio`
+- For swap execution → use `okx-dex-swap`
+- For transaction broadcasting → use `okx-onchain-gateway`
+
 ## Developer Quickstart
 
 ```typescript
@@ -340,9 +347,6 @@ GET /api/v6/dex/market/token/toplist?chains=501&sortBy=5&timeFrame=4
 - POST endpoints (`/basic-info`, `/price-info`) use JSON body
 - `/basic-info` and `/price-info` both support **batch queries** (JSON array)
 - EVM addresses must be **all lowercase**
-- For raw real-time prices / K-lines / trade history -> use `okx-dex-market`
-- For balance queries -> use `okx-wallet-portfolio`
-- For swap execution -> use `okx-dex-swap`
 
 ## Key Safety Points
 

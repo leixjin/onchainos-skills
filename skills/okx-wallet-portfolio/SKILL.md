@@ -73,6 +73,13 @@ async function okxFetch(method: 'GET' | 'POST', path: string, body?: object) {
 
 Response envelope: `{ "code": "0", "data": [...], "msg": "" }`. `code` = `"0"` means success.
 
+## Skill Routing
+
+- For token prices / K-lines → use `okx-dex-market`
+- For token search / metadata → use `okx-dex-token`
+- For swap execution → use `okx-dex-swap`
+- For transaction broadcasting → use `okx-onchain-gateway`
+
 ## Developer Quickstart
 
 ```typescript
@@ -342,9 +349,6 @@ Body: {
 - `excludeRiskToken` only works on ETH(`1`)/BSC(`56`)/SOL(`501`)/BASE(`8453`)
 - `/token-balances-by-address` is the only **POST** endpoint in this family
 - Total value is returned as a USD string — handle type conversion
-- For token prices / K-lines -> use `okx-dex-market`
-- For token search / metadata -> use `okx-dex-token`
-- For swap execution -> use `okx-dex-swap`
 
 ## Key Safety Points
 

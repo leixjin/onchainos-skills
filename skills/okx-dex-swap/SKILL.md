@@ -75,6 +75,13 @@ async function okxFetch(method: 'GET' | 'POST', path: string, body?: object) {
 
 Response envelope: `{ "code": "0", "data": [...], "msg": "" }`. `code` = `"0"` means success.
 
+## Skill Routing
+
+- For token search → use `okx-dex-token`
+- For market prices → use `okx-dex-market`
+- For balance queries → use `okx-wallet-portfolio`
+- For transaction broadcasting → use `okx-onchain-gateway`
+
 ## Developer Quickstart
 
 ### EVM Swap (quote → approve → swap)
@@ -95,7 +102,8 @@ const approveParams = new URLSearchParams({
   approveAmount: '100000000',
 });
 const approve = await okxFetch('GET', `/api/v6/dex/aggregator/approve-transaction?${approveParams}`);
-// → build tx: { to: tokenContractAddress, data: approve[0].data }, sign & send
+// → build tx: { to: tokenContractAddress, data: approve[0].data }
+// → sign, then broadcast via okx-onchain-gateway /pre-transaction/broadcast-transaction
 // approve[0].dexContractAddress is the spender (already encoded in calldata), NOT the tx target
 
 // 3. Swap
@@ -106,10 +114,11 @@ const swapParams = new URLSearchParams({
   userWalletAddress: '0xYourWallet', swapMode: 'exactIn',
 });
 const swap = await okxFetch('GET', `/api/v6/dex/aggregator/swap?${swapParams}`);
-// → sign & send swap[0].tx { from, to, data, value, gas }
+// → swap[0].tx { from, to, data, value, gas, gasPrice, minReceiveAmount }
+// → sign, then broadcast via okx-onchain-gateway /pre-transaction/broadcast-transaction
 ```
 
-### Solana Swap (swap-instruction)
+### Solana Swap
 
 ```typescript
 const params = new URLSearchParams({
@@ -117,8 +126,9 @@ const params = new URLSearchParams({
   toTokenAddress: 'DezXAZ8z7PnrnRJjz3wXBoRgixCa6xjnB7YaB1pPB263', // BONK
   amount: '1000000000', slippagePercent: '1', userWalletAddress: 'YourSolanaWallet',
 });
-const result = await okxFetch('GET', `/api/v6/dex/aggregator/swap-instruction?${params}`);
-// → result[0].instructionLists: assemble into VersionedTransaction, sign & send
+const result = await okxFetch('GET', `/api/v6/dex/aggregator/swap?${params}`);
+// → result[0].tx { from, to, data, value, gas, gasPrice, minReceiveAmount }
+// → sign, then broadcast via okx-onchain-gateway /pre-transaction/broadcast-transaction
 ```
 
 ## Common Chain IDs
@@ -171,8 +181,9 @@ This skill is the **execution endpoint** of most user trading flows. It almost a
        ↓ sufficient balance confirmed
 3. okx-dex-swap     /aggregator/quote                                         → get quote (show expected output, gas, price impact)
        ↓ user confirms
-4. okx-dex-swap     /aggregator/swap-instruction                              → get serialized instruction (Solana)
-5. User signs & sends tx (or use `okx-onchain-gateway` to broadcast via OKX nodes)
+4. okx-dex-swap     /aggregator/swap                              → get swap calldata (Solana)
+5. User signs the transaction
+6. okx-onchain-gateway  /pre-transaction/broadcast-transaction                    → broadcast signed tx via OKX nodes
 ```
 
 **Data handoff**:
@@ -191,9 +202,11 @@ This skill is the **execution endpoint** of most user trading flows. It almost a
 3. okx-dex-swap     /aggregator/quote                                         → get quote
        ↓ check isHoneyPot, taxRate, priceImpactPercent
 4. okx-dex-swap     /aggregator/approve-transaction                           → get ERC-20 approval calldata
-5. User signs & sends approval tx
-6. okx-dex-swap     /aggregator/swap                                          → get swap calldata
-7. User signs & sends swap tx (or use `okx-onchain-gateway` to broadcast via OKX nodes)
+5. User signs the approval transaction
+6. okx-onchain-gateway  /pre-transaction/broadcast-transaction                    → broadcast signed approval tx via OKX nodes
+7. okx-dex-swap     /aggregator/swap                                          → get swap calldata
+8. User signs the swap transaction
+9. okx-onchain-gateway  /pre-transaction/broadcast-transaction                    → broadcast signed swap tx via OKX nodes
 ```
 
 **Key**: EVM tokens (not native OKB) require an **approve** step. Skip it if user is selling native OKB.
@@ -215,17 +228,20 @@ This skill is the **execution endpoint** of most user trading flows. It almost a
 ```
 1. GET /aggregator/quote               -> Get price and route
 2. GET /aggregator/approve-transaction  -> Get approval calldata (if needed)
-3. User signs & sends approval tx
-4. GET /aggregator/swap                 -> Get swap calldata
-5. User signs & sends swap tx
+3. User signs the approval transaction
+4. okx-onchain-gateway  POST /pre-transaction/broadcast-transaction  → broadcast approval tx
+5. GET /aggregator/swap                 -> Get swap calldata
+6. User signs the swap transaction
+7. okx-onchain-gateway  POST /pre-transaction/broadcast-transaction  → broadcast swap tx
 ```
 
 ### Solana
 
 ```
 1. GET /aggregator/quote               -> Get price and route
-2. GET /aggregator/swap-instruction     -> Get serialized instruction
-3. User signs & sends tx
+2. GET /aggregator/swap               -> Get swap calldata
+3. User signs the transaction
+4. okx-onchain-gateway  POST /pre-transaction/broadcast-transaction  → broadcast tx
 ```
 
 ## Operation Flow
@@ -252,7 +268,7 @@ This skill is the **execution endpoint** of most user trading flows. It almost a
   - Check `isHoneyPot` and `taxRate` — surface safety info to users
 - **Confirmation phase**: wait for user approval before proceeding
 - **Approval phase** (EVM only): check/execute approve if selling non-native token
-- **Execution phase**: call `/swap` (EVM) or `/swap-instruction` (Solana), return tx data for signing
+- **Execution phase**: call `/swap` (EVM, Solana), return tx data for signing
 
 ### Step 4: Suggest Next Steps
 
@@ -344,7 +360,7 @@ Optional params: `autoSlippage`, `computeUnitPrice`, `computeUnitLimit`, `dexIds
 
 ### 6. GET /aggregator/swap (EVM + Solana)
 
-> Note: This endpoint works for **all chains** including Solana. `/swap-instruction` is a Solana-specific alternative that returns deserialized instructions instead of a serialized transaction.
+> Note: This endpoint works for **all chains** including Solana.
 
 | Param | Type | Required | Description |
 |---|---|---|---|
@@ -375,12 +391,16 @@ Optional params: `gasLevel` (`average`/`fast`/`slow`), `computeUnitPrice`, `comp
 2. User confirms
 
 3. GET /api/v6/dex/aggregator/approve-transaction?chainIndex=196&tokenContractAddress=0x74b7...&approveAmount=100000000
--> Returns approval calldata and spender address
--> Build tx: { to: "0x74b7..." (token contract), data: response.data } — sign & send
+-> Returns approval calldata: { to: "0x74b7..." (token contract), data: response.data }, spender address
 
-4. GET /api/v6/dex/aggregator/swap?chainIndex=196&...&slippagePercent=1&userWalletAddress=0x...
+4. User signs the approval transaction
+5. okx-onchain-gateway  POST /pre-transaction/broadcast-transaction  → broadcast approval tx
+
+6. GET /api/v6/dex/aggregator/swap?chainIndex=196&...&slippagePercent=1&userWalletAddress=0x...
 -> Returns tx: { from, to, data, gas, gasPrice, value, minReceiveAmount }
--> User signs and broadcasts
+
+7. User signs the swap transaction
+8. okx-onchain-gateway  POST /pre-transaction/broadcast-transaction  → broadcast swap tx
 ```
 
 **User says:** "What DEXes are available on XLayer?"
@@ -398,7 +418,6 @@ GET /api/v6/dex/aggregator/get-liquidity?chainIndex=196
 - **Tax token**: `taxRate` non-zero — display to user (e.g. 5% buy tax)
 - **Insufficient balance**: use `okx-wallet-portfolio` to check first, show current balance, suggest adjusting amount
 - **exactOut not supported**: only Ethereum/Base/BSC/Arbitrum — prompt user to use `exactIn`
-- **Solana chain**: `/swap-instruction` returns deserialized instructions (more control); `/swap` also works but returns a serialized transaction
 - **Solana native SOL address**: Must use `11111111111111111111111111111111` (system program), NOT `So11111111111111111111111111111111111111112` (wSOL). Using wSOL address causes `custom program error: 0xb` on-chain failures. See [DEX Aggregation FAQ](https://web3.okx.com/onchain-os/dev-docs/trade/dex-aggregation-faq).
 - **429 rate limit**: exponential backoff with jitter. See [Rate Limit & Fee Docs](https://web3.okx.com/onchain-os/dev-docs/home/api-fee) for tier-specific RPS limits (Trial: 1 RPS, Start-up: 2-50 RPS, Enterprise: custom).
 - **Cross-skill pipeline rate limit**: when chaining calls across multiple skills (e.g., token search → balance check → swap), add 300-500ms delay between requests to avoid triggering rate limit (error code `50011`).
@@ -418,15 +437,10 @@ GET /api/v6/dex/aggregator/get-liquidity?chainIndex=196
 - **All endpoints are GET** — no POST in the aggregator family
 - Amounts must be in **minimal units** (wei/lamports)
 - `exactOut` only on Ethereum(`1`)/Base(`8453`)/BSC(`56`)/Arbitrum(`42161`)
-- `/swap-instruction` is **Solana-only**
 - Check `isHoneyPot` and `taxRate` — surface safety info to users
 - Solana referrer wallets require SOL deposit activation
 - TON chain has limited commission pool support (excludes Stonfi V1)
 - EVM contract addresses must be **all lowercase**
-- For token search -> use `okx-dex-token`
-- For market prices -> use `okx-dex-market`
-- For balance queries -> use `okx-wallet-portfolio`
-- For transaction broadcasting -> use `okx-onchain-gateway`
 
 ## Key Safety Points
 

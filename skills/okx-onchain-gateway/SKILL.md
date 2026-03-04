@@ -76,6 +76,14 @@ async function okxFetch(method: 'GET' | 'POST', path: string, body?: object) {
 
 Response envelope: `{ "code": "0", "data": [...], "msg": "" }`. `code` = `"0"` means success.
 
+## Skill Routing
+
+- For swap quote and execution → use `okx-dex-swap`
+- For market prices → use `okx-dex-market`
+- For balance queries → use `okx-wallet-portfolio`
+- For token search → use `okx-dex-token`
+- For transaction broadcasting → use this skill (`okx-onchain-gateway`)
+
 ## Developer Quickstart
 
 ### Get Gas Price
@@ -486,11 +494,6 @@ GET /api/v6/dex/post-transaction/orders?address=0xYourWallet&chainIndex=196&orde
 - Amounts in API params use **minimal units** (wei/lamports)
 - Gas price fields: use `eip1559Protocol.suggestBaseFee` + `eip1559Protocol.proposePriorityFee` for EIP-1559 chains, `normal` for legacy
 - EVM contract addresses must be **all lowercase**
-- For swap quote and execution → use `okx-dex-swap`
-- For market prices → use `okx-dex-market`
-- For balance queries → use `okx-wallet-portfolio`
-- For token search → use `okx-dex-token`
-- For transaction broadcasting → use this skill (`okx-onchain-gateway`)
 
 ## Key Safety Points
 

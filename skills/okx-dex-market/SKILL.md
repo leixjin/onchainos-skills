@@ -73,6 +73,13 @@ async function okxFetch(method: 'GET' | 'POST', path: string, body?: object) {
 
 Response envelope: `{ "code": "0", "data": [...], "msg": "" }`. `code` = `"0"` means success.
 
+## Skill Routing
+
+- For token search / metadata / rankings / holder analysis → use `okx-dex-token`
+- For balance queries → use `okx-wallet-portfolio`
+- For swap execution → use `okx-dex-swap`
+- For transaction broadcasting → use `okx-onchain-gateway`
+
 ## Developer Quickstart
 
 ```typescript
@@ -382,10 +389,6 @@ GET /api/v6/dex/market/candles?chainIndex=196&tokenContractAddress=0x74b7...&bar
 - `chainIndex` is a **string**
 - POST endpoints (`/market/price`, `/index/current-price`) use JSON body
 - GET endpoints use query params
-- For token search / metadata / rankings / holder analysis -> use `okx-dex-token`
-- For balance queries -> use `okx-wallet-portfolio`
-- For swap execution -> use `okx-dex-swap`
-- For transaction broadcasting -> use `okx-onchain-gateway`
 
 ## Key Safety Points
 
