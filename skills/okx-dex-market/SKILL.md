@@ -1,6 +1,6 @@
 ---
 name: okx-dex-market
-description: "This skill should be used when the user asks 'what\\'s the price of OKB', 'check token price', 'how much is OKB', 'show me the price chart', 'get candlestick data', 'show K-line chart', 'view trade history', 'recent trades for SOL', 'price trend', 'index price', or mentions checking a token\\'s current price, viewing price charts, candlestick data, trade history, or historical price trends. Covers real-time on-chain prices, K-line/candlestick charts, trade logs, and index prices across XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, and 20+ other chains. For token search, market cap, liquidity analysis, trending tokens, or holder distribution, use okx-dex-token instead."
+description: "This skill should be used when the user asks 'what\\'s the price of OKB', 'check token price', 'how much is OKB', 'show me the price chart', 'get candlestick data', 'show K-line chart', 'view trade history', 'recent trades for SOL', 'price trend', 'index price', 'what are smart money wallets buying', 'show me whale signals', 'KOL token signals', 'what tokens are smart money buying', 'show me the signal list', 'which chains support signals', or mentions checking a token\\'s current price, viewing price charts, candlestick data, trade history, historical price trends, smart money / whale / KOL on-chain trading signals, or signal-supported chains. Covers real-time on-chain prices, K-line/candlestick charts, trade logs, index prices, and smart money signals across XLayer, Solana, Ethereum, Base, BSC, Arbitrum, Polygon, and 20+ other chains. For token search, market cap, liquidity analysis, trending tokens, or holder distribution, use okx-dex-token instead."
 license: Apache-2.0
 metadata:
   author: okx
@@ -10,11 +10,11 @@ metadata:
 
 # OKX DEX Market Data API
 
-7 endpoints for on-chain prices, trades, candlesticks, and index prices.
+9 endpoints for on-chain prices, trades, candlesticks, index prices, and smart money signals.
 
 **Base URL**: `https://web3.okx.com`
 
-**Base path**: `/api/v6/dex/market` and `/api/v6/dex/index`
+**Base path**: `/api/v6/dex/market`, `/api/v6/dex/index`, and `/api/v6/dex/market/signal`
 
 **Auth**: HMAC-SHA256 signature, 4 headers required (`OK-ACCESS-KEY`, `OK-ACCESS-SIGN`, `OK-ACCESS-PASSPHRASE`, `OK-ACCESS-TIMESTAMP`)
 
@@ -79,6 +79,7 @@ Response envelope: `{ "code": "0", "data": [...], "msg": "" }`. `code` = `"0"` m
 - For balance queries → use `okx-wallet-portfolio`
 - For swap execution → use `okx-dex-swap`
 - For transaction broadcasting → use `okx-onchain-gateway`
+- Signal data (smart money / whale / KOL buy signals, signal-supported chains) → use `okx-dex-market`
 
 ## Developer Quickstart
 
@@ -135,6 +136,15 @@ Error Codes: [Market Price Error Codes](https://web3.okx.com/onchain-os/dev-docs
 
 Error Codes: [Index Price Error Codes](https://web3.okx.com/onchain-os/dev-docs/market/index-price-error-code)
 
+### Signal API
+
+| # | Method | Path | Docs |
+|---|---|---|---|
+| 8 | GET | `/api/v6/dex/market/signal/supported/chain` | [market-signal-chains](https://web3.okx.com/onchainos/dev-docs/market/market-signal-chains) |
+| 9 | POST | `/api/v6/dex/market/signal/list` | [market-signal-list](https://web3.okx.com/onchainos/dev-docs/market/market-signal-list) |
+
+Error Codes: [Signal API Error Codes](https://web3.okx.com/onchainos/dev-docs/market/market-signal-error-code)
+
 ## Boundary: market vs token skill
 
 | Need | Use this skill (`okx-dex-market`) | Use `okx-dex-token` instead |
@@ -148,8 +158,10 @@ Error Codes: [Index Price Error Codes](https://web3.okx.com/onchain-os/dev-docs/
 | Token metadata (decimals, logo) | - | `POST /market/token/basic-info` |
 | Token ranking (trending) | - | `GET /market/token/toplist` |
 | Holder distribution | - | `GET /market/token/holder` |
+| Smart money / whale / KOL signals | `POST /market/signal/list` | - |
+| Signal-supported chains | `GET /market/signal/supported/chain` | - |
 
-**Rule of thumb**: `okx-dex-market` = raw price feeds & charts. `okx-dex-token` = token discovery & enriched analytics.
+**Rule of thumb**: `okx-dex-market` = raw price feeds, charts & smart money signals. `okx-dex-token` = token discovery & enriched analytics.
 
 ## Cross-Skill Workflows
 
@@ -186,6 +198,34 @@ Error Codes: [Index Price Error Codes](https://web3.okx.com/onchain-os/dev-docs/
 2. okx-dex-market  /index/historical-price?period=1d                → historical index price comparison
 ```
 
+### Workflow D: Signal-Driven Token Research & Buy
+
+> User: "Show me what smart money is buying on Solana and buy if it looks good"
+
+```
+1. okx-dex-market  /market/signal/supported/chain                   → confirm Solana (chainIndex=501) supports signals
+2. okx-dex-market  /market/signal/list  { chainIndex:"501", walletType:"1,2,3" }
+                                                                     → get latest smart money / whale / KOL buy signals
+                                                                        → extracts token.tokenAddress, chainIndex, price, walletType, triggerWalletCount
+       ↓ user picks a token from signal list
+3. okx-dex-token   /market/price-info                               → enrich: market cap, liquidity, 24h volume, priceChange24H
+4. okx-dex-token   /market/token/holder                             → check holder concentration risk
+5. okx-dex-market  /market/candles                                  → K-line chart to confirm momentum
+       ↓ user decides to buy
+6. okx-wallet-portfolio /balance/all-token-balances-by-address      → verify wallet has enough funds
+7. okx-dex-swap    /aggregator/quote → /aggregator/swap → execute
+```
+
+**Data handoff**: `token.tokenAddress` + `chainIndex` from step 2 feed directly into steps 3–7.
+
+> User: "Filter signals to only show whale buys above $10k"
+
+```
+1. okx-dex-market  /market/signal/list  { chainIndex:"1", walletType:"3", minAmountUsd:"10000" }
+                                                                     → whale-only signals on Ethereum, min $10k
+2. okx-dex-market  /market/candles                                  → chart for chosen token
+```
+
 ## Operation Flow
 
 ### Step 1: Identify Intent
@@ -197,12 +237,15 @@ Error Codes: [Index Price Error Codes](https://web3.okx.com/onchain-os/dev-docs/
 - Supported chains for market price -> `GET /market/supported/chain`
 - Index price (current) -> `POST /index/current-price`
 - Index price (historical) -> `GET /index/historical-price`
+- Smart money / whale / KOL buy signals -> `POST /market/signal/list`
+- Chains supporting signals -> `GET /market/signal/supported/chain`
 
 ### Step 2: Collect Parameters
 
-- Missing `chainIndex` -> recommend XLayer (chainIndex `196`, low gas, fast confirmation) as the default, then ask which chain the user prefers
-- Missing token address -> use `okx-dex-token` `/market/token/search` first to resolve
+- Missing `chainIndex` -> recommend XLayer (chainIndex `196`, low gas, fast confirmation) as the default, then ask which chain the user prefers; for signal queries, first call `/market/signal/supported/chain` to confirm the chain is supported
+- Missing token address -> use `okx-dex-token` `/market/token/search` first to resolve; for signal queries, `tokenAddress` is optional (omit to get all signals on the chain)
 - K-line requests -> confirm bar size and time range with user
+- Signal filter params (`walletType`, `minAmountUsd`, etc.) -> ask user for preferences if not specified; default to no filter (returns all signal types)
 
 ### Step 3: Call and Display
 
@@ -220,6 +263,8 @@ After displaying results, suggest 2-3 relevant follow-up actions based on the en
 | `/market/candles` or `/market/historical-candles` | 1. Check recent trades → `/market/trades` (this skill) 2. Buy/swap based on the chart → `okx-dex-swap` 3. Check wallet balance of this token → `okx-wallet-portfolio` |
 | `/market/trades` | 1. View price chart for context → `/market/candles` (this skill) 2. Execute a trade → `okx-dex-swap` |
 | `/index/current-price` or `/index/historical-price` | 1. Compare with on-chain DEX price → `/market/price` (this skill) 2. View full price chart → `/market/candles` (this skill) |
+| `/market/signal/list` | 1. View price chart for a signal token → `/market/candles` (this skill) 2. Deep token analytics (market cap, liquidity) → `okx-dex-token` 3. Buy the token → `okx-dex-swap` |
+| `/market/signal/supported/chain` | 1. Fetch signals on a supported chain → `/market/signal/list` (this skill) |
 
 Present conversationally, e.g.: "Would you like to see the K-line chart, or buy this token?" — never expose skill names or endpoint paths to the user.
 
@@ -350,6 +395,105 @@ Optional params: `period` (`1m`, `5m`, `30m`, `1h`, `1d` default), `limit` (max 
 }
 ```
 
+### 8. GET /market/signal/supported/chain
+
+No parameters required.
+
+**Response:**
+
+| Field | Type | Description |
+|---|---|---|
+| `data[].chainIndex` | String | Chain unique identifier (e.g., `"1"` for Ethereum, `"501"` for Solana) |
+| `data[].chainName` | String | Chain name (e.g., "Ethereum") |
+| `data[].chainLogo` | String | Chain logo URL |
+
+```json
+{
+  "code": "0",
+  "data": [
+    { "chainIndex": "1", "chainName": "Ethereum", "chainLogo": "https://..." },
+    { "chainIndex": "501", "chainName": "Solana", "chainLogo": "https://..." }
+  ],
+  "msg": ""
+}
+```
+
+> Call this first when a user wants signal data and you need to confirm chain support before calling `/market/signal/list`.
+
+### 9. POST /market/signal/list
+
+Request body is a JSON array with a single object. Returns latest **buy-direction** token signals sorted descending by time.
+
+| Param | Type | Required | Description |
+|---|---|---|---|
+| `chainIndex` | String | Yes | Chain ID (single-chain queries only, e.g., `"501"`) |
+| `walletType` | String | No | Wallet classification, comma-separated: `1`=Smart Money, `2`=KOL/Influencer, `3`=Whale (e.g., `"1,2,3"`) |
+| `minAmountUsd` | String | No | Minimum transaction amount in USD |
+| `maxAmountUsd` | String | No | Maximum transaction amount in USD |
+| `minAddressCount` | String | No | Minimum number of wallet addresses triggering the signal |
+| `maxAddressCount` | String | No | Maximum number of wallet addresses triggering the signal |
+| `tokenAddress` | String | No | Token contract address; if provided, returns signals only for that token |
+| `minMarketCapUsd` | String | No | Minimum token market cap in USD at signal trigger |
+| `maxMarketCapUsd` | String | No | Maximum token market cap in USD at signal trigger |
+| `minLiquidityUsd` | String | No | Minimum token liquidity in USD at signal trigger |
+| `maxLiquidityUsd` | String | No | Maximum token liquidity in USD at signal trigger |
+
+**Response:**
+
+| Field | Type | Description |
+|---|---|---|
+| `data[].timestamp` | String | Signal trigger timestamp (Unix ms) |
+| `data[].chainIndex` | String | Chain identifier |
+| `data[].price` | String | Token USD price at signal trigger |
+| `data[].walletType` | String | `SMART_MONEY` / `WHALE` / `INFLUENCER` |
+| `data[].triggerWalletCount` | String | Number of wallets that triggered the signal |
+| `data[].triggerWalletAddress` | String | Comma-separated list of triggering wallet addresses |
+| `data[].amountUsd` | String | Total transaction amount in USD |
+| `data[].soldRatioPercent` | String | Percentage of the position already sold |
+| `data[].token.tokenAddress` | String | Token contract address |
+| `data[].token.symbol` | String | Token symbol |
+| `data[].token.name` | String | Token name |
+| `data[].token.logo` | String | Token logo URL |
+| `data[].token.marketCapUsd` | String | Token market cap in USD |
+| `data[].token.holders` | String | Number of holder addresses |
+| `data[].token.top10HolderPercent` | String | Percentage held by top 10 addresses |
+
+```json
+// Request body
+[{
+  "chainIndex": "501",
+  "walletType": "1,2,3",
+  "minAmountUsd": "1000",
+  "maxAmountUsd": "500000",
+  "minAddressCount": "2"
+}]
+
+// Response
+{
+  "code": "0",
+  "data": [{
+    "timestamp": "1772547560679",
+    "chainIndex": "501",
+    "price": "0.00041028240641149",
+    "walletType": "INFLUENCER",
+    "triggerWalletCount": "3",
+    "triggerWalletAddress": "4cXnf2z85UiZ5cyKsPMEULq1yufAtpkatmX4j4DBZqj2,ARSdp5MFL1bjgWddK8dkF3QdttHvy5ZdVjJ6T8BHJimo",
+    "amountUsd": "8967.93",
+    "soldRatioPercent": "0.5603",
+    "token": {
+      "tokenAddress": "7AVtDPrxKexrJ4gLLSfdTjeqeeN1DcxLW8wLBj4dpump",
+      "symbol": "SANAE",
+      "name": "サナエ・トークン",
+      "logo": "https://...",
+      "marketCapUsd": "135093.89",
+      "holders": "1363",
+      "top10HolderPercent": "18.9985"
+    }
+  }],
+  "msg": ""
+}
+```
+
 ## Input / Output Examples
 
 **User says:** "Check the current price of OKB on XLayer"
@@ -372,6 +516,8 @@ GET /api/v6/dex/market/candles?chainIndex=196&tokenContractAddress=0x74b7...&bar
 - **Invalid token address**: returns empty data or error — prompt user to verify, or use `okx-dex-token /market/token/search` to resolve
 - **Unsupported chain**: call `/market/supported/chain` first to confirm
 - **No candle data**: may be a new token or low liquidity — inform user
+- **Unsupported chain for signals**: not all chains that support market prices also support signals — always verify with `/market/signal/supported/chain` first
+- **Empty signal list**: no signals on this chain for the given filters — suggest relaxing `walletType`, `minAmountUsd`, or `minAddressCount`, or try a different chain
 - **429 rate limit**: exponential backoff with jitter. See [Rate Limit & Fee Docs](https://web3.okx.com/onchain-os/dev-docs/home/api-fee) for tier-specific RPS limits (Trial: 1 RPS, Start-up: 2-50 RPS, Enterprise: custom).
 - **Cross-skill pipeline rate limit**: when chaining calls across multiple skills (e.g., token search → candles), add 300-500ms delay between requests to avoid triggering rate limit (error code `50011`).
 - **Network error**: retry once, then prompt user to try again later
