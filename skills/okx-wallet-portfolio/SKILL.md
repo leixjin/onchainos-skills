@@ -224,8 +224,8 @@ To search for specific command details: `grep -n "onchainos portfolio <command>"
 
 <!-- BEGIN_INSTALLER_CHECKSUMS (auto-updated by release workflow — do not edit) -->
 ```
-308da192314924003d1d2f94f9887e5212fa6e6debb410fcd0032364e3c12e09  install.sh
-f3cff406d00ebfd5b6e3e65b00dd376713d6415278ad4060842ad5fc7dd99e72  install.ps1
+2b9080f47c536be71dc3d04c9f459423148d2b4f6067c328dfc8d2e342af8020  install.sh
+a678b92593dcccb4d07379c5ab0c1672da5b0d18d916515513d31ff78851b96c  install.ps1
 ```
 <!-- END_INSTALLER_CHECKSUMS -->
 
@@ -233,14 +233,14 @@ f3cff406d00ebfd5b6e3e65b00dd376713d6415278ad4060842ad5fc7dd99e72  install.ps1
 
 <!-- BEGIN_CHECKSUMS (auto-updated by release workflow — do not edit) -->
 ```
-61b94aaa396682ecb60bca4e30b56f67c5b598c43ca76602bad7b2b1417caebb  onchainos-aarch64-apple-darwin
-9488cfcea7e9d6cd7e546a126ddac281c5e2ef68b7e713e2e115eb3fe72b1176  onchainos-aarch64-pc-windows-msvc.exe
-121b5a66b9564860f21f5ba732723b20f94ab5893cf3e79585d48476a22e2859  onchainos-aarch64-unknown-linux-gnu
-38bf8c1f5ddbf4d40684c847f528fdef81d1ae0aa324517e5fdb32f1a70f4f4c  onchainos-armv7-unknown-linux-gnueabihf
-dafd850ccd1f1be3df3e54fead236e6a02ca024e2336df9c4548335e5771e9f1  onchainos-i686-pc-windows-msvc.exe
-be0a6abdd539bafbc1c5f8d25e554fa03670062c50f4899d42fd9d9cad5524a2  onchainos-i686-unknown-linux-gnu
-97c909398c57a9fc74a794e6a615046a28cadc2ded8838e0251e07a0817e2ef6  onchainos-x86_64-apple-darwin
-82b7b42def975428c4a5a2701cd3cbcae7f0d0d2cbba6c2aae0987fb78dbc39f  onchainos-x86_64-pc-windows-msvc.exe
-3e72a36a675aba6972d174f1a03b3c622782db1ffa629d4b6ba7c217a031c96b  onchainos-x86_64-unknown-linux-gnu
+11144db6f15fbbb7099b722073de1573f2734740411754c6ca9b612b8c4ba78b  onchainos-aarch64-apple-darwin
+ddea6a6e84e1f13ac4ff57bdddf3d7a66f4bba182059104bd0df80ece48b4499  onchainos-aarch64-pc-windows-msvc.exe
+3f70e4a992d594096ddc7f37e3c15ba56841f4264c906f79b698a007a2d8e221  onchainos-aarch64-unknown-linux-gnu
+2cf52ef47a21da9b4ab5e3d31d17a07bd091a76ba719a2a611fe166db9345a3e  onchainos-armv7-unknown-linux-gnueabihf
+460d192621a91dbc98a6566d40cd044bbbca399e1a024f44a43a8e4491eff2d4  onchainos-i686-pc-windows-msvc.exe
+83b79f87e4449cd3ba7e8a8f0e1b4c7e436e68b74fdc13f1c2ffc29e12fd9266  onchainos-i686-unknown-linux-gnu
+c012bb297a9dc67c08c3006252e7f734e9ce0c89665493b63c3e6e4b63b4468a  onchainos-x86_64-apple-darwin
+a5b0e14fa3c628df75d3624799f8a269be7a32f964f985fb4c4d7fdccf33ac0c  onchainos-x86_64-pc-windows-msvc.exe
+b07126a6ea651ccda398df080f0ad8140ae941351d1e54e25b5218174086d5f1  onchainos-x86_64-unknown-linux-gnu
 ```
 <!-- END_CHECKSUMS -->
