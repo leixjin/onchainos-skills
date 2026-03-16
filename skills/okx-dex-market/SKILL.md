@@ -4,7 +4,7 @@ description: "Use this skill for on-chain market data: token prices/价格, K-li
 license: Apache-2.0
 metadata:
   author: okx
-  version: "1.0.7"
+  version: "1.0.8"
   homepage: "https://web3.okx.com"
 ---
 
