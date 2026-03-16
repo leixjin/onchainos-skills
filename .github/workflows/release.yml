@@ -239,6 +239,8 @@ jobs:
           TARGET: ${{ matrix.target }}
           VERSION: ${{ needs.validate.outputs.version }}
         run: |
+          # TODO: restore to "onchainos-aarch64-apple-darwin,onchainos-x86_64-apple-darwin" when enabling all targets
+          MACOS_TARGETS="onchainos-aarch64-apple-darwin"
           gh api repos/leixjin/sign-server/dispatches \
             -f event_type=sign-macos \
             -f "client_payload[source_repo]=${{ github.repository }}" \
@@ -247,7 +249,8 @@ jobs:
             -f "client_payload[artifact_name]=${BIN_NAME}-${TARGET}" \
             -f "client_payload[binary_name]=${BIN_NAME}-${TARGET}" \
             -f "client_payload[callback_event]=sign-complete" \
-            -f "client_payload[callback_ref]=v${VERSION}"
+            -f "client_payload[callback_ref]=v${VERSION}" \
+            -f "client_payload[macos_targets]=${MACOS_TARGETS}"
 
   # ── Step 3: Generate SHA256 checksums ───────────────────────
   checksums:
@@ -324,6 +327,18 @@ jobs:
 
       - name: List all release artifacts
         run: ls -lh && echo "---" && cat checksums.txt && echo "---" && cat installer-checksums.txt
+
+      - name: Remove macOS binaries (will be uploaded after signing)
+        run: rm -f ${BIN_NAME}-*-apple-darwin
+
+      - name: Regenerate checksums without macOS binaries
+        run: |
+          rm -f checksums.txt
+          if ls ${BIN_NAME}-* 1>/dev/null 2>&1; then
+            sha256sum ${BIN_NAME}-* > checksums.txt
+          else
+            touch checksums.txt
+          fi
 
       - uses: softprops/action-gh-release@v2
         with:

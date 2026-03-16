@@ -3,11 +3,12 @@
 #
 # Trigger: repository_dispatch with event_type "sign-complete"
 # Payload:
-#   artifact_name  — e.g. "onchainos-aarch64-apple-darwin"
-#   binary_name    — e.g. "onchainos-aarch64-apple-darwin"
-#   sign_run_id    — sign-server workflow run ID (to download artifact)
-#   sign_repo      — e.g. "leixjin/sign-server"
-#   callback_ref   — tag to update, e.g. "v1.0.0"
+#   artifact_name   — e.g. "onchainos-aarch64-apple-darwin"
+#   binary_name     — e.g. "onchainos-aarch64-apple-darwin"
+#   sign_run_id     — sign-server workflow run ID (to download artifact)
+#   sign_repo       — e.g. "leixjin/sign-server"
+#   callback_ref    — tag to update, e.g. "v1.0.0"
+#   macos_targets   — comma-separated list, e.g. "onchainos-aarch64-apple-darwin,onchainos-x86_64-apple-darwin"
 # ──────────────────────────────────────────────────────────────
 name: Sign Callback
 
@@ -47,14 +48,60 @@ jobs:
           echo "Downloaded signed artifact:"
           ls -lh ./signed/
 
-      - name: Replace release asset with signed binary
+      - name: Upload signed binary to release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ github.event.client_payload.callback_ref }}
           BINARY_NAME: ${{ github.event.client_payload.binary_name }}
         run: |
-          echo "Updating release $TAG with signed $BINARY_NAME"
-          # Remove unsigned asset, then upload signed version
-          gh release delete-asset "$TAG" "$BINARY_NAME" --yes 2>/dev/null || true
           gh release upload "$TAG" "./signed/$BINARY_NAME" --clobber
-          echo "Release asset updated successfully."
+          echo "Uploaded $BINARY_NAME to release $TAG"
+
+      - name: Check if all macOS targets are signed and regenerate checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.event.client_payload.callback_ref }}
+          MACOS_TARGETS: ${{ github.event.client_payload.macos_targets }}
+        run: |
+          # Get current release asset names
+          ASSETS=$(gh release view "$TAG" --json assets -q '.assets[].name')
+          echo "Current release assets:"
+          echo "$ASSETS"
+
+          # Check if all expected macOS targets are present
+          ALL_PRESENT=true
+          IFS=',' read -ra TARGETS <<< "$MACOS_TARGETS"
+          for target in "${TARGETS[@]}"; do
+            if ! echo "$ASSETS" | grep -qx "$target"; then
+              echo "Missing: $target"
+              ALL_PRESENT=false
+            else
+              echo "Present: $target"
+            fi
+          done
+
+          if [ "$ALL_PRESENT" != "true" ]; then
+            echo "Not all macOS targets signed yet. Skipping checksums regeneration."
+            exit 0
+          fi
+
+          echo "All macOS targets present. Regenerating checksums..."
+
+          # Download all release assets
+          mkdir -p ./release-assets
+          gh release download "$TAG" --dir ./release-assets
+
+          # Regenerate checksums for all binaries (exclude checksums files and installers)
+          cd ./release-assets
+          rm -f checksums.txt installer-checksums.txt
+          BINARY_FILES=$(ls | grep -v '\.txt$' | grep -v '\.sh$' | grep -v '\.ps1$' || true)
+          if [ -n "$BINARY_FILES" ]; then
+            sha256sum $BINARY_FILES > checksums.txt
+            echo "New checksums:"
+            cat checksums.txt
+          fi
+          cd ..
+
+          # Upload updated checksums
+          gh release upload "$TAG" ./release-assets/checksums.txt --clobber
+          echo "Checksums regenerated and uploaded."
