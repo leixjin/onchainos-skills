@@ -95,23 +95,23 @@ jobs:
           # ── macOS (Apple Silicon + Intel) ──
           - { target: aarch64-apple-darwin, os: macos-latest }
           - { target: x86_64-apple-darwin, os: macos-latest }
-          # ── Linux (x64 native, others via cross-compilation) ──
-          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
-          - { target: i686-unknown-linux-gnu, os: ubuntu-latest, cross: true }
-          - {
-              target: aarch64-unknown-linux-gnu,
-              os: ubuntu-latest,
-              cross: true,
-            }
-          - {
-              target: armv7-unknown-linux-gnueabihf,
-              os: ubuntu-latest,
-              cross: true,
-            }
-          # ── Windows (x64 / x86 / ARM64) ──
-          - { target: x86_64-pc-windows-msvc, os: windows-latest }
-          - { target: i686-pc-windows-msvc, os: windows-latest }
-          - { target: aarch64-pc-windows-msvc, os: windows-latest }
+          # # ── Linux (x64 native, others via cross-compilation) ──
+          # - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          # - { target: i686-unknown-linux-gnu, os: ubuntu-latest, cross: true }
+          # - {
+          #     target: aarch64-unknown-linux-gnu,
+          #     os: ubuntu-latest,
+          #     cross: true,
+          #   }
+          # - {
+          #     target: armv7-unknown-linux-gnueabihf,
+          #     os: ubuntu-latest,
+          #     cross: true,
+          #   }
+          # # ── Windows (x64 / x86 / ARM64) ──
+          # - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          # - { target: i686-pc-windows-msvc, os: windows-latest }
+          # - { target: aarch64-pc-windows-msvc, os: windows-latest }
 
     name: Build ${{ matrix.target }}
 
@@ -214,6 +214,39 @@ jobs:
         with:
           name: ${{ env.BIN_NAME }}-${{ matrix.target }}
           path: ${{ env.BIN_NAME }}-${{ matrix.target }}*
+
+  # ── Step 2.5: Trigger macOS code signing ─────────────────────
+  trigger-sign:
+    needs: [validate, build]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    steps:
+      - name: Generate GitHub App token
+        id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ secrets.GH_APP_ID }}
+          private-key: ${{ secrets.GH_APP_PRIVATE_KEY }}
+          repositories: "sign-server"
+          owner: "leixjin"
+
+      - name: Trigger sign-server for ${{ matrix.target }}
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TARGET: ${{ matrix.target }}
+          VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          gh api repos/leixjin/sign-server/dispatches \
+            -f event_type=sign-macos \
+            -f "client_payload[source_repo]=${{ github.repository }}" \
+            -f "client_payload[source_repo_name]=${GITHUB_REPOSITORY#*/}" \
+            -f "client_payload[source_run_id]=${{ github.run_id }}" \
+            -f "client_payload[artifact_name]=${BIN_NAME}-${TARGET}" \
+            -f "client_payload[binary_name]=${BIN_NAME}-${TARGET}" \
+            -f "client_payload[callback_event]=sign-complete" \
+            -f "client_payload[callback_ref]=v${VERSION}"
 
   # ── Step 3: Generate SHA256 checksums ───────────────────────
   checksums:
