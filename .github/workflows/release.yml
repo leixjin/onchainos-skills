@@ -1,9 +1,15 @@
 # ──────────────────────────────────────────────────────────────
 # Automated release pipeline
 # Trigger: workflow_dispatch with version input
-# Flow: validate → build 9 platforms → generate checksums →
+# Flow: validate → build non-macOS platforms → download signed
+#        macOS from sign-server → generate checksums →
 #        commit version update → tag → publish Release
 # Artifacts: raw binaries (not tar.gz), with checksums.txt
+#
+# Prerequisites:
+#   macOS binaries must be signed and uploaded to sign-server
+#   (leixjin/sign-server) as a GitHub Release with matching
+#   tag (e.g. v1.0.7) BEFORE triggering this workflow.
 #
 # Beta releases:
 #   Use version format "2.0.0-beta.0" — the workflow auto-detects
@@ -32,6 +38,7 @@ env:
   CARGO_TERM_COLOR: always
   CARGO_DIR: cli
   BIN_NAME: onchainos
+  SIGN_SERVER_REPO: leixjin/sign-server
 
 jobs:
   # ── Step 1: Validate version input ──────────────────────────
@@ -82,7 +89,7 @@ jobs:
             exit 1
           fi
 
-  # ── Step 2: Build raw binaries for 9 platforms in parallel ──
+  # ── Step 2: Build non-macOS binaries in parallel ────────────
   build:
     needs: validate
     runs-on: ${{ matrix.os }}
@@ -92,26 +99,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # ── macOS (Apple Silicon + Intel) ──
-          - { target: aarch64-apple-darwin, os: macos-latest }
-          - { target: x86_64-apple-darwin, os: macos-latest }
-          # ── Linux (x64 native, others via cross-compilation) ──
-          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
-          - { target: i686-unknown-linux-gnu, os: ubuntu-latest, cross: true }
-          - {
-              target: aarch64-unknown-linux-gnu,
-              os: ubuntu-latest,
-              cross: true,
-            }
-          - {
-              target: armv7-unknown-linux-gnueabihf,
-              os: ubuntu-latest,
-              cross: true,
-            }
-          # ── Windows (x64 / x86 / ARM64) ──
-          - { target: x86_64-pc-windows-msvc, os: windows-latest }
-          - { target: i686-pc-windows-msvc, os: windows-latest }
-          - { target: aarch64-pc-windows-msvc, os: windows-latest }
+          # # ── Linux (x64 native, others via cross-compilation) ──
+          # - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          # - { target: i686-unknown-linux-gnu, os: ubuntu-latest, cross: true }
+          # - {
+          #     target: aarch64-unknown-linux-gnu,
+          #     os: ubuntu-latest,
+          #     cross: true,
+          #   }
+          # - {
+          #     target: armv7-unknown-linux-gnueabihf,
+          #     os: ubuntu-latest,
+          #     cross: true,
+          #   }
+          # # ── Windows (x64 / x86 / ARM64) ──
+          # - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          # - { target: i686-pc-windows-msvc, os: windows-latest }
+          # - { target: aarch64-pc-windows-msvc, os: windows-latest }
 
     name: Build ${{ matrix.target }}
 
@@ -215,9 +219,9 @@ jobs:
           name: ${{ env.BIN_NAME }}-${{ matrix.target }}
           path: ${{ env.BIN_NAME }}-${{ matrix.target }}*
 
-  # ── Step 2.5: Trigger macOS code signing ─────────────────────
-  trigger-sign:
-    needs: [validate, build]
+  # ── Step 2.5: Download signed macOS binaries from sign-server ──
+  download-signed-macos:
+    needs: validate
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -232,27 +236,28 @@ jobs:
           repositories: "sign-server"
           owner: "leixjin"
 
-      - name: Trigger sign-server for ${{ matrix.target }}
+      - name: Download signed macOS binary from sign-server
         env:
           GH_TOKEN: ${{ steps.app-token.outputs.token }}
+          TAG: v${{ needs.validate.outputs.version }}
           TARGET: ${{ matrix.target }}
-          VERSION: ${{ needs.validate.outputs.version }}
         run: |
-          MACOS_TARGETS="onchainos-aarch64-apple-darwin,onchainos-x86_64-apple-darwin"
-          gh api repos/leixjin/sign-server/dispatches \
-            -f event_type=sign-macos \
-            -f "client_payload[source_repo]=${{ github.repository }}" \
-            -f "client_payload[source_repo_name]=${GITHUB_REPOSITORY#*/}" \
-            -f "client_payload[source_run_id]=${{ github.run_id }}" \
-            -f "client_payload[artifact_name]=${BIN_NAME}-${TARGET}" \
-            -f "client_payload[binary_name]=${BIN_NAME}-${TARGET}" \
-            -f "client_payload[callback_event]=sign-complete" \
-            -f "client_payload[callback_ref]=v${VERSION}" \
-            -f "client_payload[macos_targets]=${MACOS_TARGETS}"
+          gh release download "$TAG" \
+            --repo "$SIGN_SERVER_REPO" \
+            --pattern "${BIN_NAME}-${TARGET}" \
+            --dir .
+          echo "Downloaded signed binary:"
+          ls -lh "${BIN_NAME}-${TARGET}"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.BIN_NAME }}-${{ matrix.target }}
+          path: ${{ env.BIN_NAME }}-${{ matrix.target }}
 
   # ── Step 3: Generate SHA256 checksums ───────────────────────
   checksums:
-    needs: build
+    # TODO: restore to [build, download-signed-macos] when enabling all targets
+    needs: [download-signed-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -326,31 +331,13 @@ jobs:
       - name: List all release artifacts
         run: ls -lh && echo "---" && cat checksums.txt && echo "---" && cat installer-checksums.txt
 
-      - name: Remove macOS binaries (will be uploaded after signing)
-        run: rm -f ${BIN_NAME}-*-apple-darwin
-
-      - name: Regenerate checksums without macOS binaries
-        run: |
-          rm -f checksums.txt
-          if ls ${BIN_NAME}-* 1>/dev/null 2>&1; then
-            sha256sum ${BIN_NAME}-* > checksums.txt
-          fi
-
-      - name: Collect release files
-        run: |
-          mkdir -p release-files
-          # Copy non-macOS binaries (if any)
-          cp ${BIN_NAME}-* release-files/ 2>/dev/null || true
-          # Copy checksums only if non-empty
-          [ -s checksums.txt ] && cp checksums.txt release-files/
-          cp installer-checksums.txt release-files/
-          echo "Release files:"
-          ls -lh release-files/
-
       - uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ needs.validate.outputs.version }}
           name: v${{ needs.validate.outputs.version }}
           prerelease: ${{ needs.validate.outputs.is_beta == 'true' }}
           generate_release_notes: true
-          files: release-files/*
+          files: |
+            ${{ env.BIN_NAME }}-*
+            checksums.txt
+            installer-checksums.txt
