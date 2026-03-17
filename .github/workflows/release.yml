@@ -90,9 +90,7 @@ jobs:
           fi
 
   # ── Step 2: Build non-macOS binaries in parallel ────────────
-  # TODO: remove "if: false" to re-enable non-macOS builds
   build:
-    if: false
     needs: validate
     runs-on: ${{ matrix.os }}
     env:
@@ -258,8 +256,7 @@ jobs:
 
   # ── Step 3: Generate SHA256 checksums ───────────────────────
   checksums:
-    # TODO: restore to [build, download-signed-macos] when enabling all targets
-    needs: [download-signed-macos]
+    needs: [build, download-signed-macos]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
