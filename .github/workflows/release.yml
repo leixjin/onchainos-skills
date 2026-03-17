@@ -90,7 +90,9 @@ jobs:
           fi
 
   # ── Step 2: Build non-macOS binaries in parallel ────────────
+  # TODO: remove "if: false" to re-enable non-macOS builds
   build:
+    if: false
     needs: validate
     runs-on: ${{ matrix.os }}
     env:
@@ -99,23 +101,23 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # # ── Linux (x64 native, others via cross-compilation) ──
-          # - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
-          # - { target: i686-unknown-linux-gnu, os: ubuntu-latest, cross: true }
-          # - {
-          #     target: aarch64-unknown-linux-gnu,
-          #     os: ubuntu-latest,
-          #     cross: true,
-          #   }
-          # - {
-          #     target: armv7-unknown-linux-gnueabihf,
-          #     os: ubuntu-latest,
-          #     cross: true,
-          #   }
-          # # ── Windows (x64 / x86 / ARM64) ──
-          # - { target: x86_64-pc-windows-msvc, os: windows-latest }
-          # - { target: i686-pc-windows-msvc, os: windows-latest }
-          # - { target: aarch64-pc-windows-msvc, os: windows-latest }
+          # ── Linux (x64 native, others via cross-compilation) ──
+          - { target: x86_64-unknown-linux-gnu, os: ubuntu-latest }
+          - { target: i686-unknown-linux-gnu, os: ubuntu-latest, cross: true }
+          - {
+              target: aarch64-unknown-linux-gnu,
+              os: ubuntu-latest,
+              cross: true,
+            }
+          - {
+              target: armv7-unknown-linux-gnueabihf,
+              os: ubuntu-latest,
+              cross: true,
+            }
+          # ── Windows (x64 / x86 / ARM64) ──
+          - { target: x86_64-pc-windows-msvc, os: windows-latest }
+          - { target: i686-pc-windows-msvc, os: windows-latest }
+          - { target: aarch64-pc-windows-msvc, os: windows-latest }
 
     name: Build ${{ matrix.target }}
 
